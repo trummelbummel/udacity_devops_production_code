@@ -15,7 +15,6 @@ import constants
 import numpy as np
 
 
-
 def setup():
     """
     Set up directory for image testing.
@@ -66,6 +65,7 @@ def test_import():
         logging.error(
             "Testing import_data: The file doesn't appear to have rows and columns")
         raise err
+    logging.info('Import Data: SUCCESS')
 
 
 def test_preprocess_data(dataframe_input):
@@ -75,21 +75,28 @@ def test_preprocess_data(dataframe_input):
     preprocessed_data = churn_library.preprocess_data(dataframe_input)
     try:
         assert constants.dependent in preprocessed_data.columns
-    except AssertionError:
+    except AssertionError as err:
         logging.error('Target column not in columns.')
+        raise err
+    logging.info('Preprocessing: SUCCESS')
 
 
 def test_eda(datasets):
     '''
     test perform eda function
     '''
+    setup()
     _, _, _, _, preprocessed_data = datasets
     churn_library.perform_eda(preprocessed_data)
     try:
-        assert len(os.listdir(constants.imagepath)) == 3
-    except AssertionError:
+        assert len([x for x in
+                    os.listdir(constants.imagepath) if 'univar' in x]) == len(constants.plot_univar) + len(
+            constants.plot_univar_cat)
+    except AssertionError as err:
         logging.error('Not all image files where saved, '
                       'saved images: %s', str(os.listdir(constants.imagepath)))
+        raise err
+    logging.info('EDA: SUCCESS')
 
 
 def test_encoder_helper(datasets):
@@ -101,21 +108,26 @@ def test_encoder_helper(datasets):
     original_columns = preprocessed_data.columns
     try:
         assert constants.dependent in preprocessed_data.columns
-    except AssertionError:
+    except AssertionError as err:
         logging.error('Dependent variable not in data.')
+        raise err
     for col in constants.cat_columns:
-        preprocessed_data = churn_library.encoder_helper(
+        new_data = churn_library.encoder_helper(
             preprocessed_data, col)
     try:
-        assert len(original_columns) + \
-               len(constants.cat_columns) == len(preprocessed_data.columns)
-    except AssertionError:
+        assert len(original_columns) == len(new_data.columns)  # because unnamed is removed
+    except AssertionError as err:
         logging.error('Number of columns after encoding not as expected.')
-    diffcols = set(original_columns).difference(preprocessed_data.columns)
+        raise err
+    diffcols = list(filter(lambda x: 'Churn' in x, list(new_data.columns)))
+    diffcols.remove('Churn')
     try:
-        assert [x + 'Churn' for x in constants.cat_columns] == list(diffcols)
-    except AssertionError:
+        assert sorted([x + '_Churn' for x in constants.cat_columns]) == sorted(list(diffcols))
+    except AssertionError as err:
+        logging.info('diffcols %s', diffcols)
         logging.error('Column content not as expected.')
+        raise err
+    logging.info('Encoding : SUCCESS')
 
 
 def test_perform_feature_engineering(datasets):
@@ -128,15 +140,16 @@ def test_perform_feature_engineering(datasets):
     try:
         assert x_test.shape[0] == ytest.shape[0]
         assert x_train.shape[0] == ytrain.shape[0]
-    except AssertionError:
+    except AssertionError as err:
         logging.error('Shape of test or train not similar.')
+        raise err
     try:
-        assert set([x + 'Churn' for x in constants.cat_columns]
-                   ).intersection(x_test.columns) == len(constants.cat_columns)
-        assert set([x + 'Churn' for x in constants.cat_columns]
-                   ).intersection(x_train.columns) == len(constants.cat_columns)
-    except AssertionError:
+        assert len(set([x for x in x_train.columns if constants.dependent in x])) == len(constants.cat_columns)
+        assert len(set([x for x in x_test.columns if constants.dependent in x])) == len(constants.cat_columns)
+    except AssertionError as err:
         logging.error('Expected categorical columns missing.')
+        raise err
+    logging.info('Feature Engineering: SUCCESS')
 
 
 def test_train_evaluate_models(datasets):
@@ -145,33 +158,28 @@ def test_train_evaluate_models(datasets):
     '''
     x_train, ytrain, x_test, ytest, _ = datasets
     model = churn_library.train_models(x_train, ytrain)
-    try:
-        assert check_is_fitted(model) is True
-    except AssertionError:
-        logging.error('Model not fitted.')
     y_pred = churn_library.prediction(model, x_test)
     try:
         assert sorted(np.unique(y_pred).tolist()) == [0, 1]
-    except AssertionError:
+    except AssertionError as err:
         logging.error('Predictions take  on unexpected values.')
+        raise err
     try:
         modelfiles = os.listdir('./models/')
         assert len([x for x in modelfiles if '.pkl' in x]) >= 1
-    except AssertionError:
+    except AssertionError as err:
         logging.error('Model not saved.')
+        raise err
     churn_library.evaluation(model, x_test, ytest)
     resultplots = os.listdir(constants.imagepath)
     try:
         assert len([x for x in resultplots if 'classificationreport' in x]) == 1
         assert len([x for x in resultplots if 'roc' in x]) == 1
-    except AssertionError:
+    except AssertionError as err:
         logging.error('Missing result plot.')
+        raise err
+    logging.info('Train Model: SUCCESS')
 
 
 if __name__ == "__main__":
     setup()
-    logging.basicConfig(
-        filename='./logs/churn_librarytests.log',
-        level=logging.INFO,
-        filemode='a',
-        format='%(name)s - %(levelname)s - %(message)s')

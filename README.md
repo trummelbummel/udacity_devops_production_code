@@ -38,8 +38,10 @@ ipython churn_library.py
 ```
 
 Tests can be executed using:
+One needs to disable the builtin logging for pytest beforehand.
+
 ```bash
-pytest churn_script_logging_and_tests.py
+pytest -p no:logging churn_script_logging_and_tests.py
 ```
 
 The tests are logging the errors into the file stored at: ./logs/churn_librarytests.log
